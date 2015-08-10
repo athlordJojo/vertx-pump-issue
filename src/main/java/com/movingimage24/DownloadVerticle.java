@@ -40,39 +40,39 @@ public class DownloadVerticle extends AbstractVerticle {
     private void createFile(Message<String> message) {
         final String filePath = File.separator + "opt/vertx-module" + File.separator + UUID.randomUUID().toString();
         // create the file
-        vertx.fileSystem().createFile(filePath, fileCreationResponse -> {
+        OpenOptions openOptions = new OpenOptions();
+        openOptions.setCreateNew(true);
+        vertx.fileSystem().open(filePath, openOptions, fileOpenResponse -> {
             if (fileCreationResponse.succeeded()) {
                 // open the file
                 OpenOptions openOptions = new OpenOptions();
-                vertx.fileSystem().open(filePath, openOptions, fileOpenResponse -> {
-                    if (fileOpenResponse.succeeded()) {
-                        AsyncFile asyncFile = fileOpenResponse.result();
+                if (fileOpenResponse.succeeded()) {
+                    AsyncFile asyncFile = fileOpenResponse.result();
 
-                        String url = "http://vmpro.mi24.dev/ffh-1-nginx/vertxissue/Testimonial_Thoma.wmv";
-                        try {
-                            URL resolvedUrl = new URL(url);
-                            HttpClientOptions options = new HttpClientOptions()
-                                    .setDefaultHost(resolvedUrl.getHost());
+                    String url = "http://vmpro.mi24.dev/ffh-1-nginx/vertxissue/Testimonial_Thoma.wmv";
+                    try {
+                        URL resolvedUrl = new URL(url);
+                        HttpClientOptions options = new HttpClientOptions()
+                                .setDefaultHost(resolvedUrl.getHost());
 
 
-                            if (resolvedUrl.getPort() != -1) {
-                                options.setDefaultPort(resolvedUrl.getPort());
-                            }
-
-                            HttpClient client = vertx.createHttpClient(options);
-                            HttpClientRequest httpClientRequest = client.get(resolvedUrl.getFile(), getHttpClientResponseHandler(asyncFile, filePath, message));
-                            httpClientRequest.exceptionHandler(getExceptionHandler(url, message, asyncFile));
-                            httpClientRequest.end();
-                        } catch (Exception e) {
-                            String errorMessage = String.format("Error while resolving url: %s", url);
-                            logger.error(errorMessage, e);
-                            message.fail(2, errorMessage);
+                        if (resolvedUrl.getPort() != -1) {
+                            options.setDefaultPort(resolvedUrl.getPort());
                         }
-                    } else {
-                        String errorMessage = String.format("Could not open file at : %s", filePath);
-                        message.fail(1, errorMessage);
+
+                        HttpClient client = vertx.createHttpClient(options);
+                        HttpClientRequest httpClientRequest = client.get(resolvedUrl.getFile(), getHttpClientResponseHandler(asyncFile, filePath, message));
+                        httpClientRequest.exceptionHandler(getExceptionHandler(url, message, asyncFile));
+                        httpClientRequest.end();
+                    } catch (Exception e) {
+                        String errorMessage = String.format("Error while resolving url: %s", url);
+                        logger.error(errorMessage, e);
+                        message.fail(2, errorMessage);
                     }
-                });
+                } else {
+                    String errorMessage = String.format("Could not open file at : %s", filePath);
+                    message.fail(1, errorMessage);
+                }
             } else {
                 String errorMessage = String.format("Could not create file at : %s", filePath);
                 message.fail(1, errorMessage);
@@ -91,22 +91,22 @@ public class DownloadVerticle extends AbstractVerticle {
 
     private Handler<HttpClientResponse> getHttpClientResponseHandler(final AsyncFile asyncFile, final String filePath, Message<String> message) {
         return httpClientResponse -> {
-            httpClientResponse.pause();
             int statusCode = httpClientResponse.statusCode();
             if (statusCode != 200) {
                 String errorMessage = String.format("Could not download file. Status code was not 200, got: %s", statusCode);
                 logger.error(errorMessage);
-                message.fail(3, errorMessage);
+                message.fail(MESSAGE_RESPONSE_CODES.DOWNLOAD_FAILED_NOT_200.getCode(), errorMessage);
                 asyncFile.close();
                 return;
             }
 
             httpClientResponse.endHandler(httpEndHandler -> {
-                message.reply(filePath);
+                asyncFile.close(closeres -> {
+                    message.reply(filePath);
+                });
             });
             Pump pump = Pump.factory.pump(httpClientResponse, asyncFile);
             pump.start();
-            httpClientResponse.resume();
         };
     }
 }
