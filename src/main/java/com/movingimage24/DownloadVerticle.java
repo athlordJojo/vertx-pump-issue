@@ -43,9 +43,8 @@ public class DownloadVerticle extends AbstractVerticle {
         OpenOptions openOptions = new OpenOptions();
         openOptions.setCreateNew(true);
         vertx.fileSystem().open(filePath, openOptions, fileOpenResponse -> {
-            if (fileCreationResponse.succeeded()) {
+            if (fileOpenResponse.succeeded()) {
                 // open the file
-                OpenOptions openOptions = new OpenOptions();
                 if (fileOpenResponse.succeeded()) {
                     AsyncFile asyncFile = fileOpenResponse.result();
 
@@ -95,7 +94,6 @@ public class DownloadVerticle extends AbstractVerticle {
             if (statusCode != 200) {
                 String errorMessage = String.format("Could not download file. Status code was not 200, got: %s", statusCode);
                 logger.error(errorMessage);
-                message.fail(MESSAGE_RESPONSE_CODES.DOWNLOAD_FAILED_NOT_200.getCode(), errorMessage);
                 asyncFile.close();
                 return;
             }
